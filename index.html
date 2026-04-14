@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Inventario — Control de Activos</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<style>
+:root {
+  --bg: #080c14;
+  --surface: #0f1520;
+  --surface2: #151d2e;
+  --border: #1c2740;
+  --border2: #263354;
+  --text: #e4e9f2;
+  --text2: #8b95ab;
+  --text3: #505c75;
+  --accent: #3772ff;
+  --accent2: #5e5aff;
+  --accent-glow: #3772ff33;
+  --green: #2dd4a0;
+  --green-bg: #2dd4a015;
+  --red: #ff5c72;
+  --red-bg: #ff5c7215;
+  --amber: #ffb340;
+  --amber-bg: #ffb34015;
+  --purple: #a78bfa;
+  --purple-bg: #a78bfa15;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --font: 'DM Sans', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { background:var(--bg); color:var(--text); font-family:var(--font); height:100%; overflow:hidden; }
+input,select,textarea,button { font-family:inherit; }
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+
+#app { height:100%; display:flex; flex-direction:column; }
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp { from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)} }
+@keyframes fadeIn { from{opacity:0}to{opacity:1} }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.5} }
+@keyframes scanLine { 0%{top:10%}100%{top:88%} }
+@keyframes spin { to{transform:rotate(360deg)} }
+@keyframes slideUp { from{transform:translateY(100%)}to{transform:translateY(0)} }
+@keyframes shake { 0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)} }
+
+.fade-up { animation: fadeUp .4s ease both; }
+.stagger-1 { animation-delay:.05s }
+.stagger-2 { animation-delay:.1s }
+.stagger-3 { animation-delay:.15s }
+.stagger-4 { animation-delay:.2s }
+
+/* ── LOGIN ── */
+.login-wrap {
+  display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px;
+  background: radial-gradient(ellipse at 25% 0%, #1a1547 0%, var(--bg) 55%);
+}
+.login-card {
+  width:100%; max-width:380px; background:var(--surface); border:1px solid var(--border);
+  border-radius:20px; padding:40px 32px; box-shadow:0 40px 80px #00000066;
+  animation: fadeUp .5s ease;
+}
+.login-logo { width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;font:800 18px/1 var(--mono);color:#fff;margin:0 auto 20px;letter-spacing:1px; }
+.login-title { text-align:center;font:700 22px/1.2 var(--mono);color:var(--text);margin-bottom:4px; }
+.login-sub { text-align:center;color:var(--text3);font-size:13px;margin-bottom:32px; }
+.login-error { background:var(--red-bg);border:1px solid #ff5c7233;border-radius:var(--radius-sm);padding:10px 16px;
+  color:var(--red);font-size:13px;margin-bottom:16px;animation:shake .4s ease; }
+
+/* ── FORM ELEMENTS ── */
+.field-label { display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px; }
+.field-input {
+  width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);
+  color:var(--text);padding:11px 14px;font-size:14px;outline:none;transition:border .2s;
+}
+.field-input:focus { border-color:var(--accent); }
+.field-input::placeholder { color:var(--text3); }
+.field-select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23505c75'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:32px; cursor:pointer; }
+textarea.field-input { resize:vertical;min-height:70px; }
+
+.btn-primary {
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 22px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:var(--radius-sm);
+  color:#fff;font-weight:600;font-size:14px;cursor:pointer;transition:transform .15s,box-shadow .15s;white-space:nowrap;
+}
+.btn-primary:active { transform:scale(.97); }
+.btn-primary:disabled { opacity:.5;cursor:default; }
+.btn-ghost {
+  display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:transparent;
+  border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-weight:500;
+  font-size:13px;cursor:pointer;white-space:nowrap;
+}
+.btn-ghost:active { background:var(--surface2); }
+.btn-icon {
+  display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:transparent;
+  border:1px solid var(--border);border-radius:8px;color:var(--text2);cursor:pointer;flex-shrink:0;
+}
+.btn-icon:active { background:var(--surface2); }
+.btn-danger { color:var(--red);border-color:#ff5c7233; }
+
+/* ── APP LAYOUT ── */
+.app-layout { display:flex; height:100%; overflow:hidden; }
+
+/* Desktop sidebar */
+.sidebar {
+  width:230px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;flex-shrink:0;
+}
+.sidebar-head { display:flex;align-items:center;gap:12px;padding:22px 18px 18px; }
+.sidebar-logo { width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;font:800 13px/1 var(--mono);color:#fff;flex-shrink:0; }
+.sidebar-brand { font:700 15px/1.2 var(--mono);color:var(--text); }
+.sidebar-brand small { display:block;font:400 11px/1.3 var(--font);color:var(--text3); }
+.sidebar-nav { flex:1;padding:6px 10px;display:flex;flex-direction:column;gap:2px; }
+.nav-item {
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border:none;background:transparent;
+  color:var(--text3);border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit;width:100%;text-align:left;
+  transition:background .15s,color .15s;
+}
+.nav-item:hover { background:var(--surface2);color:var(--text2); }
+.nav-item.active { background:var(--surface2);color:var(--text); }
+.nav-item svg { width:20px;height:20px;opacity:.7; }
+.nav-item.active svg { opacity:1; }
+.sidebar-foot {
+  padding:14px 14px calc(14px + var(--safe-bottom));border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;
+}
+.user-info { display:flex;align-items:center;gap:10px;flex:1;min-width:0; }
+.user-avatar { width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0; }
+.user-name { font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.user-role { font-size:11px;color:var(--text3); }
+
+/* Mobile bottom nav */
+.bottom-nav {
+  display:none;position:fixed;bottom:0;left:0;right:0;z-index:100;
+  background:var(--surface);border-top:1px solid var(--border);
+  padding:6px 8px calc(6px + var(--safe-bottom));
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+}
+.bottom-nav-inner { display:flex;justify-content:space-around; }
+.bnav-item {
+  display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;border:none;background:transparent;
+  color:var(--text3);cursor:pointer;font-size:10px;font-family:inherit;min-width:52px;
+}
+.bnav-item svg { width:22px;height:22px; }
+.bnav-item.active { color:var(--accent); }
+.bnav-item.scan-btn { position:relative;margin-top:-18px; }
+.bnav-item.scan-btn .scan-circle {
+  width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px var(--accent-glow);
+}
+.bnav-item.scan-btn .scan-circle svg { color:#fff; }
+.bnav-item.scan-btn span { margin-top:4px; }
+
+/* Main content */
+.main-content { flex:1;overflow-y:auto;overflow-x:hidden;min-width:0; }
+.page-pad { padding:24px;max-width:1100px; }
+.page-title { font:700 22px/1.2 var(--mono);color:var(--text);margin-bottom:4px; }
+.page-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;gap:12px;flex-wrap:wrap; }
+
+/* ── STATS ── */
+.stats-row { display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px; }
+.stat-card { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;position:relative;overflow:hidden; }
+.stat-accent { position:absolute;top:0;left:0;width:3px;height:100%; }
+.stat-label { font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px; }
+.stat-val { font:700 24px/1 var(--mono);color:var(--text); }
+.stat-sub { font-size:11px;color:var(--text3);margin-top:4px; }
+
+/* ── DASHBOARD GRID ── */
+.dash-grid { display:grid;grid-template-columns:1fr 1fr;gap:16px; }
+.card { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px; }
+.card-title { font-size:14px;font-weight:600;color:var(--text2);margin-bottom:14px; }
+.cat-row { display:flex;align-items:center;gap:8px;padding:5px 0; }
+.cat-row .bar-track { flex:0 0 60px;height:5px;background:var(--border);border-radius:3px;overflow:hidden; }
+.cat-row .bar-fill { height:100%;border-radius:3px; }
+.cat-row .cat-label { flex:1;font-size:12px;color:var(--text2); }
+.cat-row .cat-count { font:600 12px var(--mono);color:var(--text);min-width:20px;text-align:right; }
+.log-row { padding:7px 0;border-bottom:1px solid var(--border); }
+.log-row:last-child { border:none; }
+.log-date { font-size:11px;color:var(--text3); }
+.log-text { font-size:12px;color:var(--text2);margin-top:1px; }
+
+/* ── FILTERS ── */
+.filters-bar { display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap; }
+.search-box { display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0 12px;flex:1;min-width:180px;color:var(--text3); }
+.search-box svg { width:16px;height:16px;flex-shrink:0; }
+.search-box input { background:none;border:none;outline:none;color:var(--text);padding:10px 0;font-size:14px;width:100%; }
+.filter-select { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);
+  padding:9px 30px 9px 12px;font-size:12px;outline:none;cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%23505c75'%3E%3Cpath d='M5 7L0 2h10z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;
+}
+.results-count { font-size:12px;color:var(--text3);margin-bottom:10px; }
+
+/* ── TABLE ── */
+.table-wrap { overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface); }
+table { width:100%;border-collapse:collapse; }
+th { text-align:left;padding:10px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;
+  letter-spacing:.8px;border-bottom:1px solid var(--border);background:var(--surface2); }
+td { padding:10px 14px;border-bottom:1px solid #1c274011;font-size:13px;color:var(--text2);vertical-align:middle; }
+tr:last-child td { border:none; }
+.item-name { font-weight:600;color:var(--text);font-size:13px; }
+.item-serial { font-size:10px;color:var(--text3); }
+.item-barcode { font:400 11px var(--mono);color:var(--text3); }
+
+/* ── MOBILE CARDS (replaces table on small screens) ── */
+.mobile-cards { display:none;flex-direction:column;gap:10px; }
+.m-card {
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;
+  cursor:pointer;transition:background .15s;
+}
+.m-card:active { background:var(--surface2); }
+.m-card-head { display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px; }
+.m-card-name { font-weight:600;color:var(--text);font-size:14px; }
+.m-card-cat { display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 8px;border-radius:6px;font-weight:600; }
+.m-card-row { display:flex;gap:16px;flex-wrap:wrap; }
+.m-card-field { font-size:11px; }
+.m-card-field .lbl { color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-size:9px;font-weight:700;margin-bottom:1px; }
+.m-card-field .val { color:var(--text2); }
+
+/* ── BADGES ── */
+.badge { display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600; }
+.state-pill { display:inline-block;padding:3px 10px;border-radius:16px;font-size:11px;font-weight:600; }
+.state-nuevo { background:var(--green-bg);color:var(--green); }
+.state-en-uso { background:#3772ff15;color:var(--accent); }
+.state-reparacion { background:var(--amber-bg);color:var(--amber); }
+.state-disponible { background:var(--purple-bg);color:var(--purple); }
+.state-baja { background:var(--red-bg);color:var(--red); }
+
+/* ── SCANNER ── */
+.scanner-page { padding:24px;max-width:600px; }
+.scanner-container {
+  position:relative;width:100%;aspect-ratio:4/3;max-height:50vh;background:#000;border-radius:var(--radius);overflow:hidden;
+  border:2px solid var(--border);
+}
+.scanner-container video { width:100%;height:100%;object-fit:cover; }
+.scanner-container canvas { display:none; }
+.scan-overlay {
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;
+}
+.scan-frame {
+  width:75%;height:40%;border:2px solid var(--accent);border-radius:12px;position:relative;
+  box-shadow:0 0 0 9999px #00000066;
+}
+.scan-line { position:absolute;left:8%;right:8%;height:2px;background:var(--accent);box-shadow:0 0 12px var(--accent);
+  animation:scanLine 2s ease-in-out infinite alternate; }
+.scan-corners::before,.scan-corners::after,.scan-corners .c1::before,.scan-corners .c1::after {
+  content:'';position:absolute;width:20px;height:20px;border-color:var(--accent);border-style:solid;
+}
+.scan-corners::before { top:-1px;left:-1px;border-width:3px 0 0 3px;border-radius:8px 0 0 0; }
+.scan-corners::after { top:-1px;right:-1px;border-width:3px 3px 0 0;border-radius:0 8px 0 0; }
+.scan-corners .c1::before { bottom:-1px;left:-1px;border-width:0 0 3px 3px;border-radius:0 0 0 8px; }
+.scan-corners .c1::after { bottom:-1px;right:-1px;border-width:0 3px 3px 0;border-radius:0 0 8px 0; }
+.scan-status { text-align:center;margin-top:16px;font-size:13px;color:var(--text2); }
+.scan-status.found { color:var(--green); }
+.scan-status.not-found { color:var(--amber); }
+.scan-manual { margin-top:20px; }
+.scan-manual-row { display:flex;gap:8px; }
+.scan-manual-row input { flex:1;font-family:var(--mono);font-size:16px;letter-spacing:2px; }
+
+/* ── DETAIL ── */
+.detail-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:16px 20px; }
+.detail-field .dlabel { font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px;font-weight:700; }
+.detail-field .dval { font-size:13px;color:var(--text);font-weight:500; }
+.detail-field .dval.mono { font-family:var(--mono); }
+.barcode-display { display:flex;justify-content:center;margin-top:18px;background:#fff;border-radius:8px;padding:10px; }
+.notes-box { margin-top:14px;padding:12px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--text2); }
+.notes-box strong { color:var(--text); }
+
+/* ── FORM ── */
+.form-grid { display:grid;grid-template-columns:1fr 1fr;gap:14px 18px; }
+.form-group { display:flex;flex-direction:column; }
+.form-full { grid-column:1/-1; }
+.form-actions { display:flex;gap:10px;justify-content:flex-end;margin-top:20px; }
+
+/* ── MODAL / SHEET ── */
+.modal-overlay {
+  position:fixed;inset:0;z-index:200;background:#00000088;backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .2s ease;
+}
+.modal-sheet {
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;width:100%;max-width:680px;
+  max-height:90vh;overflow-y:auto;padding:28px;animation:fadeUp .3s ease;
+}
+.sheet-title { font:700 18px/1.2 var(--mono);color:var(--text);margin-bottom:20px;display:flex;align-items:center;justify-content:space-between; }
+
+/* ── TOAST ── */
+.toast {
+  position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:999;padding:10px 24px;border-radius:var(--radius-sm);
+  color:#fff;font-weight:600;font-size:13px;box-shadow:0 8px 30px #00000055;animation:fadeUp .3s ease;white-space:nowrap;max-width:90vw;
+}
+.toast.success { background:var(--green); }
+.toast.error { background:var(--red); }
+
+/* ── USER MANAGEMENT ── */
+.user-table { width:100%; }
+
+/* ── LOADING ── */
+.loading-screen { display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh; }
+.spinner { width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite; }
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px) {
+  .sidebar { display:none; }
+  .bottom-nav { display:block; }
+  .main-content { padding-bottom:calc(72px + var(--safe-bottom)); }
+  .page-pad { padding:18px 16px; }
+  .page-title { font-size:18px; }
+  .stat-val { font-size:20px; }
+  .stats-row { grid-template-columns:repeat(2,1fr);gap:8px; }
+  .stat-card { padding:14px; }
+  .dash-grid { grid-template-columns:1fr; }
+  .filters-bar { flex-direction:column; }
+  .filter-select { width:100%; }
+  .table-wrap { display:none; }
+  .mobile-cards { display:flex; }
+  .detail-grid { grid-template-columns:repeat(2,1fr);gap:12px; }
+  .form-grid { grid-template-columns:1fr; }
+  .modal-sheet { border-radius:20px 20px 0 0;align-self:flex-end;max-height:92vh;padding:24px 20px; }
+  .page-header { flex-direction:column;align-items:stretch; }
+  .page-header .btn-primary { width:100%;justify-content:center; }
+  .scanner-container { aspect-ratio:3/4;max-height:55vh; }
+}
+@media(max-width:380px) {
+  .stats-row { grid-template-columns:1fr; }
+  .detail-grid { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// INVENTARIO APP — Full rewrite with mobile + camera barcode
+// ═══════════════════════════════════════════════════════════════
+
+const CATEGORIES = [
+  {id:"ordenadores",label:"Ordenadores",icon:"💻",color:"#3772ff"},
+  {id:"monitores",label:"Monitores",icon:"🖥️",color:"#a78bfa"},
+  {id:"perifericos",label:"Periféricos",icon:"🖱️",color:"#06b6d4"},
+  {id:"cables",label:"Cables",icon:"🔌",color:"#ffb340"},
+  {id:"red",label:"Red",icon:"📡",color:"#2dd4a0"},
+  {id:"almacenamiento",label:"Almacenamiento",icon:"💾",color:"#ff5c72"},
+  {id:"moviles",label:"Móviles/Tablets",icon:"📱",color:"#ec4899"},
+  {id:"impresoras",label:"Impresoras",icon:"🖨️",color:"#f97316"},
+  {id:"componentes",label:"Componentes",icon:"🔧",color:"#5e5aff"},
+  {id:"material",label:"Material oficina",icon:"📎",color:"#78716c"},
+  {id:"otros",label:"Otros",icon:"📦",color:"#64748b"},
+];
+const LOCATIONS = ["Almacén principal","Oficina A","Oficina B","Sala servidores","Recepción","Sala reuniones","Taller","Otro"];
+const STATES = ["Nuevo","En uso","En reparación","Disponible","Dado de baja"];
+const STATE_CLASS = {"Nuevo":"state-nuevo","En uso":"state-en-uso","En reparación":"state-reparacion","Disponible":"state-disponible","Dado de baja":"state-baja"};
+
+const uid = () => Math.random().toString(36).slice(2,10);
+function genBarcode(){let c="";for(let i=0;i<12;i++)c+=Math.floor(Math.random()*10);let s=0;for(let i=0;i<12;i++)s+=parseInt(c[i])*(i%2===0?1:3);c+=(10-(s%10))%10;return c;}
+function catFor(id){return CATEGORIES.find(c=>c.id===id)||CATEGORIES[CATEGORIES.length-1];}
+
+function barcodeSVG(val,w=200,h=52){
+  const enc=["0001101","0011001","0010011","0111101","0100011","0110001","0101111","0111011","0110111","0001011"];
+  const bin=val.split("").map(c=>enc[parseInt(c)]||"0000000").join("");
+  const bw=w/(bin.length+10);
+  let bars="";bin.split("").forEach((b,i)=>{if(b==="1")bars+=`<rect x="${5+i*bw}" y="4" width="${bw}" height="${h-4}" fill="#1a1a2e"/>`;});
+  return `<svg width="${w}" height="${h+16}" viewBox="0 0 ${w} ${h+16}" xmlns="http://www.w3.org/2000/svg"><rect width="${w}" height="${h+16}" fill="white" rx="4"/>${bars}<text x="${w/2}" y="${h+13}" text-anchor="middle" font-size="10" font-family="JetBrains Mono,monospace" fill="#1a1a2e">${val}</text></svg>`;
+}
+
+const DEMO=[
+  {id:uid(),name:"Dell Latitude 5540",category:"ordenadores",barcode:"8412345678901",serial:"DL5540-2024-001",location:"Oficina A",state:"En uso",quantity:1,assignedTo:"Carlos García",purchaseDate:"2024-03-15",notes:"16GB RAM, 512GB SSD",value:1250},
+  {id:uid(),name:"Monitor LG 27UK850",category:"monitores",barcode:"8412345678902",serial:"LG27-2024-015",location:"Oficina A",state:"En uso",quantity:3,assignedTo:"Departamento IT",purchaseDate:"2024-01-20",notes:"27\" 4K USB-C",value:450},
+  {id:uid(),name:"Teclado Logitech MX Keys",category:"perifericos",barcode:"8412345678903",serial:"LMX-2024-042",location:"Almacén principal",state:"Disponible",quantity:12,assignedTo:"",purchaseDate:"2024-06-01",notes:"Inalámbrico, layout ES",value:110},
+  {id:uid(),name:"Cable HDMI 2m",category:"cables",barcode:"8412345678904",serial:"",location:"Almacén principal",state:"Nuevo",quantity:25,assignedTo:"",purchaseDate:"2024-07-10",notes:"HDMI 2.1",value:12},
+  {id:uid(),name:"Switch Cisco SG350",category:"red",barcode:"8412345678905",serial:"CSG350-2023-003",location:"Sala servidores",state:"En uso",quantity:2,assignedTo:"Infraestructura",purchaseDate:"2023-11-05",notes:"48 puertos PoE+",value:890},
+  {id:uid(),name:"HP LaserJet Pro M404",category:"impresoras",barcode:"8412345678906",serial:"HPM404-2024-001",location:"Oficina B",state:"En uso",quantity:1,assignedTo:"Administración",purchaseDate:"2024-02-28",notes:"Tóner nuevo",value:320},
+  {id:uid(),name:"iPad Air 5ª gen",category:"moviles",barcode:"8412345678907",serial:"IPAD5-2024-008",location:"Sala reuniones",state:"En uso",quantity:2,assignedTo:"Dirección",purchaseDate:"2024-04-15",notes:"256GB WiFi+Cell",value:780},
+  {id:uid(),name:"SSD Samsung 870 EVO 1TB",category:"almacenamiento",barcode:"8412345678908",serial:"",location:"Almacén principal",state:"Disponible",quantity:8,assignedTo:"",purchaseDate:"2024-05-20",notes:"SATA III",value:95},
+];
+
+// ── State ──
+let state = {
+  user:null, users:null, items:[], log:[], loading:true,
+  view:"dashboard", search:"", fCat:"all", fState:"all", fLoc:"all",
+  modal:null, // {type:'form'|'detail', item?}
+  scanActive:false, scanResult:null, scanInput:"",
+  toast:null, toastTimer:null,
+};
+
+function setState(patch){Object.assign(state,patch);render();}
+function showToast(msg,type="success"){
+  clearTimeout(state.toastTimer);
+  state.toast={msg,type};
+  state.toastTimer=setTimeout(()=>{state.toast=null;render();},3000);
+  render();
+}
+function addLog(action){
+  state.log=[{id:uid(),action,date:new Date().toISOString(),user:state.user?.name||"Sistema"},...state.log].slice(0,200);
+}
+
+// ── Persistence ──
+const SKEY="inv-data",AKEY="inv-auth";
+async function load(){
+  try{
+    let a,d;
+    try{const r=await window.storage.get(AKEY);a=r?JSON.parse(r.value):null;}catch{}
+    try{const r=await window.storage.get(SKEY);d=r?JSON.parse(r.value):null;}catch{}
+    if(a?.users)state.users=a.users;
+    else{state.users=[{username:"admin",password:"admin123",role:"admin",name:"Administrador"}];saveAuth();}
+    if(d){state.items=d.items||[];state.log=d.log||[];}
+    else{state.items=DEMO;state.log=[{id:uid(),action:"Sistema iniciado con datos de ejemplo",date:new Date().toISOString(),user:"Sistema"}];}
+  }catch{state.users=[{username:"admin",password:"admin123",role:"admin",name:"Administrador"}];state.items=DEMO;state.log=[];}
+  state.loading=false;render();
+}
+async function saveData(){try{await window.storage.set(SKEY,JSON.stringify({items:state.items,log:state.log}));}catch{}}
+async function saveAuth(){try{await window.storage.set(AKEY,JSON.stringify({users:state.users}));}catch{}}
+function persist(){saveData();saveAuth();}
+
+// ── SVG icons ──
+const IC={
+  search:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`,
+  plus:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>`,
+  edit:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>`,
+  trash:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>`,
+  barcode:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8v8M10 8v8M14 8v4M18 8v8"/></svg>`,
+  logout:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>`,
+  dash:`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>`,
+  list:`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>`,
+  scan:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>`,
+  log:`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>`,
+  eye:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  x:`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>`,
+  check:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`,
+  users:`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  camera:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`,
+  stop:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`,
+};
+
+// ── Barcode Scanner (QuaggaJS) ──
+let quaggaRunning = false;
+function startScanner(){
+  const target = document.getElementById("scanner-viewport");
+  if(!target) return;
+  if(quaggaRunning) stopScanner();
+  Quagga.init({
+    inputStream:{
+      type:"LiveStream",
+      target:target,
+      constraints:{
+        facingMode:"environment",
+        width:{ideal:1280},
+        height:{ideal:720}
+      }
+    },
+    decoder:{
+      readers:["ean_reader","ean_8_reader","code_128_reader","code_39_reader","upc_reader","upc_e_reader"]
+    },
+    locate:true,
+    frequency:10,
+  }, function(err){
+    if(err){console.error("Quagga init error:",err);return;}
+    Quagga.start();
+    quaggaRunning=true;
+  });
+  Quagga.offDetected();
+  Quagga.onDetected(function(result){
+    const code = result.codeResult.code;
+    if(code){
+      // vibrate on detect
+      if(navigator.vibrate) navigator.vibrate(100);
+      const found = state.items.find(i=>i.barcode===code);
+      state.scanResult = found||"not_found";
+      state.scanInput = code;
+      stopScanner();
+      state.scanActive = false;
+      render();
+    }
+  });
+}
+function stopScanner(){
+  if(quaggaRunning){try{Quagga.stop();}catch{}quaggaRunning=false;}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════
+
+function render(){
+  const app = document.getElementById("app");
+  if(state.loading){app.innerHTML=`<div class="loading-screen"><div class="spinner"></div><p style="color:var(--text3);margin-top:14px;font-family:var(--mono);font-size:13px">Cargando inventario...</p></div>`;return;}
+  if(!state.user){app.innerHTML=renderLogin();bindLogin();return;}
+
+  app.innerHTML = `
+    <div class="app-layout">
+      ${renderSidebar()}
+      <div class="main-content" id="main-scroll">
+        ${state.view==="dashboard"?renderDashboard():""}
+        ${state.view==="items"?renderItems():""}
+        ${state.view==="scan"?renderScan():""}
+        ${state.view==="log"?renderLog():""}
+        ${state.view==="users"?renderUsers():""}
+      </div>
+      ${renderBottomNav()}
+    </div>
+    ${state.modal?renderModal():""}
+    ${state.toast?`<div class="toast ${state.toast.type}">${esc(state.toast.msg)}</div>`:""}
+  `;
+  bindApp();
+  if(state.view==="scan"&&state.scanActive){setTimeout(()=>startScanner(),100);}
+}
+
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+
+// ── LOGIN ──
+function renderLogin(){
+  return `<div class="login-wrap"><div class="login-card">
+    <div class="login-logo">INV</div>
+    <div class="login-title">Inventario</div>
+    <div class="login-sub">Control de activos — Iniciar sesión</div>
+    <div id="login-error"></div>
+    <div style="margin-bottom:14px"><label class="field-label">Usuario</label><input id="l-user" class="field-input" placeholder="admin" autofocus></div>
+    <div style="margin-bottom:20px"><label class="field-label">Contraseña</label><input id="l-pass" type="password" class="field-input" placeholder="••••••••"></div>
+    <button id="l-btn" class="btn-primary" style="width:100%;padding:13px 0;font-size:15px">Entrar</button>
+    <p style="text-align:center;color:var(--text3);font-size:11px;margin-top:18px">Por defecto: admin / admin123</p>
+  </div></div>`;
+}
+function bindLogin(){
+  const btn=document.getElementById("l-btn");if(!btn)return;
+  const submit=()=>{
+    const u=document.getElementById("l-user").value.trim();
+    const p=document.getElementById("l-pass").value;
+    const found=state.users?.find(x=>x.username===u&&x.password===p);
+    if(found){setState({user:found,view:"dashboard"});}
+    else{document.getElementById("login-error").innerHTML=`<div class="login-error">Usuario o contraseña incorrectos</div>`;}
+  };
+  btn.onclick=submit;
+  document.getElementById("l-user").onkeydown=e=>{if(e.key==="Enter")document.getElementById("l-pass").focus();};
+  document.getElementById("l-pass").onkeydown=e=>{if(e.key==="Enter")submit();};
+}
+
+// ── SIDEBAR ──
+function renderSidebar(){
+  const navs=[
+    {id:"dashboard",icon:IC.dash,label:"Dashboard"},
+    {id:"items",icon:IC.list,label:"Inventario"},
+    {id:"scan",icon:IC.scan,label:"Escanear"},
+    {id:"log",icon:IC.log,label:"Registro"},
+  ];
+  if(state.user.role==="admin")navs.push({id:"users",icon:IC.users,label:"Usuarios"});
+  return `<nav class="sidebar">
+    <div class="sidebar-head"><div class="sidebar-logo">INV</div><div class="sidebar-brand">Inventario<small>Control de activos</small></div></div>
+    <div class="sidebar-nav">${navs.map(n=>`<button class="nav-item ${state.view===n.id?"active":""}" data-nav="${n.id}">${n.icon}<span>${n.label}</span></button>`).join("")}</div>
+    <div class="sidebar-foot">
+      <div class="user-info"><div class="user-avatar">${esc(state.user.name[0])}</div><div><div class="user-name">${esc(state.user.name)}</div><div class="user-role">${state.user.role==="admin"?"Administrador":"Usuario"}</div></div></div>
+      <button class="btn-icon" id="btn-logout" title="Cerrar sesión">${IC.logout}</button>
+    </div>
+  </nav>`;
+}
+
+// ── BOTTOM NAV ──
+function renderBottomNav(){
+  const navs=[
+    {id:"dashboard",icon:IC.dash,label:"Inicio"},
+    {id:"items",icon:IC.list,label:"Inventario"},
+    {id:"scan",icon:IC.scan,label:"Escanear",isScan:true},
+    {id:"log",icon:IC.log,label:"Registro"},
+    {id:"users",icon:IC.users,label:"Más"},
+  ];
+  return `<div class="bottom-nav"><div class="bottom-nav-inner">${navs.map(n=>{
+    if(n.isScan)return `<button class="bnav-item scan-btn ${state.view==="scan"?"active":""}" data-bnav="scan"><div class="scan-circle">${IC.scan}</div><span>Escanear</span></button>`;
+    return `<button class="bnav-item ${state.view===n.id?"active":""}" data-bnav="${n.id}">${n.icon}<span>${n.label}</span></button>`;
+  }).join("")}</div></div>`;
+}
+
+// ── DASHBOARD ──
+function renderDashboard(){
+  const totalVal=state.items.reduce((s,i)=>s+(i.value||0)*(i.quantity||1),0);
+  const totalUn=state.items.reduce((s,i)=>s+(i.quantity||1),0);
+  const inUse=state.items.filter(i=>i.state==="En uso").length;
+  const avail=state.items.filter(i=>i.state==="Disponible"||i.state==="Nuevo").length;
+  const catHtml=CATEGORIES.map(c=>{const n=state.items.filter(i=>i.category===c.id).length;if(!n)return"";const pct=(n/state.items.length)*100;
+    return `<div class="cat-row"><span style="font-size:15px">${c.icon}</span><span class="cat-label">${c.label}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${c.color}"></div></div><span class="cat-count">${n}</span></div>`;
+  }).join("");
+  const logsHtml=state.log.slice(0,7).map(l=>`<div class="log-row"><div class="log-date">${new Date(l.date).toLocaleString("es-ES",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</div><div class="log-text">${esc(l.action)}</div></div>`).join("")||`<p style="color:var(--text3);font-size:12px">Sin actividad</p>`;
+  return `<div class="page-pad fade-up">
+    <h1 class="page-title" style="margin-bottom:20px">Dashboard</h1>
+    <div class="stats-row">
+      ${[{l:"Total artículos",v:state.items.length,c:"var(--accent)",s:totalUn+" unidades"},{l:"Valor total",v:totalVal.toLocaleString("es-ES")+" €",c:"var(--green)",s:"Coste estimado"},{l:"En uso",v:inUse,c:"var(--amber)",s:"Activos asignados"},{l:"Disponibles",v:avail,c:"var(--purple)",s:"Listos para asignar"}].map((st,i)=>`<div class="stat-card fade-up stagger-${i+1}"><div class="stat-accent" style="background:${st.c}"></div><div class="stat-label">${st.l}</div><div class="stat-val">${st.v}</div><div class="stat-sub">${st.s}</div></div>`).join("")}
+    </div>
+    <div class="dash-grid">
+      <div class="card fade-up stagger-3"><div class="card-title">Por categoría</div>${catHtml}</div>
+      <div class="card fade-up stagger-4"><div class="card-title">Actividad reciente</div>${logsHtml}</div>
+    </div>
+  </div>`;
+}
+
+// ── ITEMS ──
+function getFiltered(){
+  const q=state.search.toLowerCase();
+  return state.items.filter(i=>{
+    const ms=!q||i.name.toLowerCase().includes(q)||i.barcode.includes(q)||(i.serial||"").toLowerCase().includes(q)||(i.assignedTo||"").toLowerCase().includes(q);
+    const mc=state.fCat==="all"||i.category===state.fCat;
+    const mst=state.fState==="all"||i.state===state.fState;
+    const ml=state.fLoc==="all"||i.location===state.fLoc;
+    return ms&&mc&&mst&&ml;
+  });
+}
+function renderItems(){
+  const filtered=getFiltered();
+  const catOpts=CATEGORIES.map(c=>`<option value="${c.id}"${state.fCat===c.id?" selected":""}>${c.icon} ${c.label}</option>`).join("");
+  const stOpts=STATES.map(s=>`<option value="${s}"${state.fState===s?" selected":""}>${s}</option>`).join("");
+  const locOpts=LOCATIONS.map(l=>`<option value="${l}"${state.fLoc===l?" selected":""}>${esc(l)}</option>`).join("");
+  const rowsHtml=filtered.map(i=>{const c=catFor(i.category);return `<tr>
+    <td><div class="item-name">${esc(i.name)}</div>${i.serial?`<div class="item-serial">S/N: ${esc(i.serial)}</div>`:""}</td>
+    <td class="item-barcode">${esc(i.barcode)}</td>
+    <td><span class="badge" style="background:${c.color}18;color:${c.color}">${c.icon} ${c.label}</span></td>
+    <td style="font-size:12px">${esc(i.location)}</td>
+    <td><span class="state-pill ${STATE_CLASS[i.state]||""}">${i.state}</span></td>
+    <td style="text-align:center;font-weight:600">${i.quantity}</td>
+    <td><div style="display:flex;gap:4px">
+      <button class="btn-icon" data-detail="${i.id}" title="Ver">${IC.eye}</button>
+      <button class="btn-icon" data-edit="${i.id}" title="Editar">${IC.edit}</button>
+      <button class="btn-icon btn-danger" data-del="${i.id}" title="Eliminar">${IC.trash}</button>
+    </div></td></tr>`;}).join("");
+  const cardsHtml=filtered.map(i=>{const c=catFor(i.category);return `<div class="m-card" data-mcard="${i.id}">
+    <div class="m-card-head"><div class="m-card-name">${esc(i.name)}</div><span class="m-card-cat" style="background:${c.color}18;color:${c.color}">${c.icon} ${c.label}</span></div>
+    <div class="m-card-row">
+      <div class="m-card-field"><div class="lbl">Código</div><div class="val" style="font-family:var(--mono)">${esc(i.barcode)}</div></div>
+      <div class="m-card-field"><div class="lbl">Ubicación</div><div class="val">${esc(i.location)}</div></div>
+      <div class="m-card-field"><div class="lbl">Estado</div><div class="val"><span class="state-pill ${STATE_CLASS[i.state]||""}">${i.state}</span></div></div>
+      <div class="m-card-field"><div class="lbl">Uds</div><div class="val" style="font-weight:600">${i.quantity}</div></div>
+    </div></div>`;}).join("");
+  return `<div class="page-pad fade-up">
+    <div class="page-header"><h1 class="page-title">Inventario</h1><button class="btn-primary" id="btn-add">${IC.plus} Añadir artículo</button></div>
+    <div class="filters-bar">
+      <div class="search-box">${IC.search}<input id="f-search" value="${esc(state.search)}" placeholder="Buscar nombre, código, serie..."></div>
+      <select class="filter-select" id="f-cat"><option value="all">Todas categorías</option>${catOpts}</select>
+      <select class="filter-select" id="f-state"><option value="all">Todos estados</option>${stOpts}</select>
+      <select class="filter-select" id="f-loc"><option value="all">Todas ubicaciones</option>${locOpts}</select>
+    </div>
+    <div class="results-count">${filtered.length} resultado${filtered.length!==1?"s":""}</div>
+    <div class="table-wrap"><table><thead><tr>${["Artículo","Código","Categoría","Ubicación","Estado","Uds.","Acciones"].map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rowsHtml||`<tr><td colspan="7" style="text-align:center;padding:36px;color:var(--text3)">No se encontraron artículos</td></tr>`}</tbody></table></div>
+    <div class="mobile-cards">${cardsHtml||`<p style="text-align:center;padding:30px;color:var(--text3)">No se encontraron artículos</p>`}</div>
+  </div>`;
+}
+
+// ── SCAN ──
+function renderScan(){
+  let resultHtml="";
+  if(state.scanResult&&state.scanResult!=="not_found"){
+    const i=state.scanResult;const c=catFor(i.category);
+    resultHtml=`<div style="margin-top:20px" class="fade-up">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;color:var(--green)">${IC.check}<span style="font-weight:600;font-size:14px">Artículo encontrado</span></div>
+      <div class="card" style="cursor:pointer" id="scan-found-detail">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <div><div style="font-weight:700;color:var(--text);font-size:16px;margin-bottom:4px">${esc(i.name)}</div>
+            <span class="badge" style="background:${c.color}18;color:${c.color}">${c.icon} ${c.label}</span>
+          </div>
+          <span class="state-pill ${STATE_CLASS[i.state]||""}">${i.state}</span>
+        </div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:12px">
+          <div class="m-card-field"><div class="lbl">Código</div><div class="val" style="font-family:var(--mono)">${esc(i.barcode)}</div></div>
+          <div class="m-card-field"><div class="lbl">Ubicación</div><div class="val">${esc(i.location)}</div></div>
+          <div class="m-card-field"><div class="lbl">Cantidad</div><div class="val" style="font-weight:600">${i.quantity}</div></div>
+          ${i.assignedTo?`<div class="m-card-field"><div class="lbl">Asignado</div><div class="val">${esc(i.assignedTo)}</div></div>`:""}
+        </div>
+        <p style="margin-top:10px;font-size:12px;color:var(--text3)">Toca para ver todos los detalles →</p>
+      </div></div>`;
+  } else if(state.scanResult==="not_found"){
+    resultHtml=`<div style="margin-top:20px" class="fade-up">
+      <div class="card" style="border-color:var(--amber)33">
+        <p style="color:var(--amber);font-weight:600;margin-bottom:6px">Artículo no encontrado</p>
+        <p style="color:var(--text3);font-size:13px;margin-bottom:14px">No existe ningún artículo con el código "${esc(state.scanInput)}".</p>
+        <button class="btn-primary" id="scan-add-new">${IC.plus} Añadir con este código</button>
+      </div></div>`;
+  }
+  return `<div class="scanner-page fade-up">
+    <h1 class="page-title" style="margin-bottom:18px">Escanear código</h1>
+    ${state.scanActive?`
+      <div class="scanner-container" id="scanner-viewport">
+        <div class="scan-overlay"><div class="scan-frame"><div class="scan-line"></div><div class="scan-corners"><div class="c1"></div></div></div></div>
+      </div>
+      <div style="display:flex;justify-content:center;margin-top:14px">
+        <button class="btn-ghost" id="btn-stop-scan" style="color:var(--red);border-color:var(--red)33">${IC.stop} Detener cámara</button>
+      </div>
+    `:`
+      <div class="card">
+        <button class="btn-primary" id="btn-start-scan" style="width:100%;padding:16px 0;font-size:15px;gap:10px;margin-bottom:18px">
+          ${IC.camera} Abrir cámara para escanear
+        </button>
+        <div style="text-align:center;color:var(--text3);font-size:12px;margin-bottom:18px">— o introduce el código manualmente —</div>
+        <div class="scan-manual">
+          <div class="scan-manual-row">
+            <input id="scan-input" class="field-input" value="${esc(state.scanInput)}" placeholder="Código de barras..." style="font-family:var(--mono);font-size:16px;letter-spacing:2px">
+            <button class="btn-primary" id="btn-manual-scan">${IC.search} Buscar</button>
+          </div>
+        </div>
+      </div>
+    `}
+    ${resultHtml}
+  </div>`;
+}
+
+// ── LOG ──
+function renderLog(){
+  const rows=state.log.map(l=>`<div class="log-row"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <span style="font-size:13px;color:var(--text2)">${esc(l.action)}</span>
+    <span style="font-size:11px;color:var(--text3);white-space:nowrap">${esc(l.user)} · ${new Date(l.date).toLocaleString("es-ES")}</span>
+  </div></div>`).join("");
+  return `<div class="page-pad fade-up"><h1 class="page-title" style="margin-bottom:20px">Registro de actividad</h1><div class="card">${rows||`<p style="color:var(--text3);font-size:13px">Sin actividad registrada.</p>`}</div></div>`;
+}
+
+// ── USERS ──
+function renderUsers(){
+  if(state.user.role!=="admin") return `<div class="page-pad"><p style="color:var(--text3)">Acceso restringido.</p></div>`;
+  const rows=state.users.map(u=>`<tr>
+    <td style="font-weight:600;color:var(--text)">${esc(u.name)}</td>
+    <td style="font-family:var(--mono);color:var(--text3);font-size:12px">${esc(u.username)}</td>
+    <td><span class="badge" style="background:${u.role==="admin"?"var(--accent)":"var(--text3)"}18;color:${u.role==="admin"?"var(--accent)":"var(--text3)"}">${u.role==="admin"?"Admin":"Usuario"}</span></td>
+    <td>${u.username!=="admin"?`<button class="btn-icon btn-danger" data-deluser="${esc(u.username)}">${IC.trash}</button>`:""}</td>
+  </tr>`).join("");
+  return `<div class="page-pad fade-up">
+    <div class="page-header"><h1 class="page-title">Usuarios</h1><button class="btn-primary" id="btn-adduser">${IC.plus} Nuevo usuario</button></div>
+    <div class="card"><div class="table-wrap" style="border:none"><table class="user-table"><thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>
+  </div>`;
+}
+
+// ── MODAL (Form + Detail) ──
+function renderModal(){
+  if(!state.modal) return "";
+  let inner="";
+  if(state.modal.type==="form") inner=renderFormModal(state.modal.item);
+  else if(state.modal.type==="detail") inner=renderDetailModal(state.modal.item);
+  else if(state.modal.type==="adduser") inner=renderAddUserModal();
+  return `<div class="modal-overlay" id="modal-overlay"><div class="modal-sheet" id="modal-sheet">${inner}</div></div>`;
+}
+
+function renderFormModal(item){
+  const isEdit=!!item;
+  const f=item||{name:"",category:"otros",barcode:"",serial:"",location:"Almacén principal",state:"Nuevo",quantity:1,assignedTo:"",purchaseDate:"",notes:"",value:0};
+  const catOpts=CATEGORIES.map(c=>`<option value="${c.id}"${f.category===c.id?" selected":""}>${c.icon} ${c.label}</option>`).join("");
+  const stOpts=STATES.map(s=>`<option value="${s}"${f.state===s?" selected":""}>${s}</option>`).join("");
+  const locOpts=LOCATIONS.map(l=>`<option value="${l}"${f.location===l?" selected":""}>${esc(l)}</option>`).join("");
+  return `<div class="sheet-title"><span>${isEdit?"Editar artículo":"Nuevo artículo"}</span><button class="btn-icon" id="modal-close">${IC.x}</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label class="field-label">Nombre *</label><input class="field-input" id="fi-name" value="${esc(f.name)}" placeholder="Ej: Dell Latitude 5540"></div>
+      <div class="form-group"><label class="field-label">Categoría</label><select class="field-input field-select" id="fi-cat">${catOpts}</select></div>
+      <div class="form-group"><label class="field-label">Código de barras</label><div style="display:flex;gap:6px"><input class="field-input" id="fi-barcode" value="${esc(f.barcode)}" placeholder="Auto" style="flex:1;font-family:var(--mono)"><button class="btn-ghost" id="fi-genbc">${IC.barcode}</button></div></div>
+      <div class="form-group"><label class="field-label">Nº serie</label><input class="field-input" id="fi-serial" value="${esc(f.serial)}" placeholder="Opcional"></div>
+      <div class="form-group"><label class="field-label">Ubicación</label><select class="field-input field-select" id="fi-loc">${locOpts}</select></div>
+      <div class="form-group"><label class="field-label">Estado</label><select class="field-input field-select" id="fi-state">${stOpts}</select></div>
+      <div class="form-group"><label class="field-label">Cantidad</label><input type="number" min="1" class="field-input" id="fi-qty" value="${f.quantity}"></div>
+      <div class="form-group"><label class="field-label">Valor unitario (€)</label><input type="number" min="0" step="0.01" class="field-input" id="fi-value" value="${f.value}"></div>
+      <div class="form-group"><label class="field-label">Asignado a</label><input class="field-input" id="fi-assign" value="${esc(f.assignedTo)}" placeholder="Persona o depto."></div>
+      <div class="form-group"><label class="field-label">Fecha compra</label><input type="date" class="field-input" id="fi-date" value="${f.purchaseDate}"></div>
+      <div class="form-group form-full"><label class="field-label">Notas</label><textarea class="field-input" id="fi-notes" placeholder="Detalles...">${esc(f.notes)}</textarea></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-ghost" id="modal-cancel">Cancelar</button>
+      <button class="btn-primary" id="modal-save">${IC.check} ${isEdit?"Guardar":"Añadir"}</button>
+    </div>`;
+}
+
+function renderDetailModal(item){
+  const c=catFor(item.category);
+  const fields=[["Código barras",item.barcode,true],["Nº serie",item.serial||"—"],["Ubicación",item.location],["Estado",item.state],["Cantidad",item.quantity],["Valor unitario",item.value?item.value+" €":"—"],["Valor total",item.value?(item.value*(item.quantity||1)).toLocaleString("es-ES")+" €":"—"],["Asignado a",item.assignedTo||"—"],["Fecha compra",item.purchaseDate||"—"]];
+  return `<div class="sheet-title"><span>${esc(item.name)}</span><button class="btn-icon" id="modal-close">${IC.x}</button></div>
+    <span class="badge" style="background:${c.color}18;color:${c.color};margin-bottom:16px">${c.icon} ${c.label}</span>
+    <div class="detail-grid">${fields.map(([l,v,mono])=>`<div class="detail-field"><div class="dlabel">${l}</div><div class="dval${mono?" mono":""}">${esc(v)}</div></div>`).join("")}</div>
+    ${item.notes?`<div class="notes-box"><strong>Notas:</strong> ${esc(item.notes)}</div>`:""}
+    ${item.barcode?`<div class="barcode-display">${barcodeSVG(item.barcode,220,50)}</div>`:""}
+    <div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap">
+      <button class="btn-primary" data-modal-edit="${item.id}">${IC.edit} Editar</button>
+      <button class="btn-ghost btn-danger" data-modal-del="${item.id}">${IC.trash} Eliminar</button>
+    </div>`;
+}
+
+function renderAddUserModal(){
+  return `<div class="sheet-title"><span>Nuevo usuario</span><button class="btn-icon" id="modal-close">${IC.x}</button></div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><label class="field-label">Nombre</label><input class="field-input" id="nu-name" placeholder="Nombre completo"></div>
+      <div><label class="field-label">Usuario</label><input class="field-input" id="nu-user" placeholder="nombre.usuario"></div>
+      <div><label class="field-label">Contraseña</label><input class="field-input" id="nu-pass" type="password"></div>
+      <div><label class="field-label">Rol</label><select class="field-input field-select" id="nu-role"><option value="user">Usuario</option><option value="admin">Administrador</option></select></div>
+    </div>
+    <div class="form-actions"><button class="btn-ghost" id="modal-cancel">Cancelar</button><button class="btn-primary" id="modal-saveuser">${IC.check} Crear</button></div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BINDINGS
+// ═══════════════════════════════════════════════════════════════
+
+function bindApp(){
+  // Nav
+  document.querySelectorAll("[data-nav]").forEach(b=>b.onclick=()=>{stopScanner();setState({view:b.dataset.nav,scanActive:false,scanResult:null,scanInput:"",modal:null});});
+  document.querySelectorAll("[data-bnav]").forEach(b=>b.onclick=()=>{stopScanner();setState({view:b.dataset.bnav,scanActive:false,scanResult:null,scanInput:"",modal:null});});
+  const lo=document.getElementById("btn-logout");if(lo)lo.onclick=()=>{stopScanner();setState({user:null,modal:null});};
+
+  // Items page
+  const fsearch=document.getElementById("f-search");if(fsearch){fsearch.oninput=()=>{state.search=fsearch.value;render();};}
+  const fcat=document.getElementById("f-cat");if(fcat)fcat.onchange=()=>{state.fCat=fcat.value;render();};
+  const fst=document.getElementById("f-state");if(fst)fst.onchange=()=>{state.fState=fst.value;render();};
+  const floc=document.getElementById("f-loc");if(floc)floc.onchange=()=>{state.fLoc=floc.value;render();};
+  const addBtn=document.getElementById("btn-add");if(addBtn)addBtn.onclick=()=>setState({modal:{type:"form",item:null}});
+
+  // Table actions
+  document.querySelectorAll("[data-detail]").forEach(b=>b.onclick=()=>{const i=state.items.find(x=>x.id===b.dataset.detail);if(i)setState({modal:{type:"detail",item:i}});});
+  document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{const i=state.items.find(x=>x.id===b.dataset.edit);if(i)setState({modal:{type:"form",item:i}});});
+  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{const i=state.items.find(x=>x.id===b.dataset.del);if(i&&confirm(`¿Eliminar "${i.name}"?`)){state.items=state.items.filter(x=>x.id!==i.id);addLog(`Eliminado: ${i.name}`);showToast(`"${i.name}" eliminado`,"error");persist();}});
+  // Mobile cards
+  document.querySelectorAll("[data-mcard]").forEach(b=>b.onclick=()=>{const i=state.items.find(x=>x.id===b.dataset.mcard);if(i)setState({modal:{type:"detail",item:i}});});
+
+  // Scanner
+  const startScan=document.getElementById("btn-start-scan");if(startScan)startScan.onclick=()=>{state.scanActive=true;state.scanResult=null;render();};
+  const stopScan=document.getElementById("btn-stop-scan");if(stopScan)stopScan.onclick=()=>{stopScanner();state.scanActive=false;render();};
+  const manualScan=document.getElementById("btn-manual-scan");
+  const scanInp=document.getElementById("scan-input");
+  if(manualScan&&scanInp){
+    manualScan.onclick=()=>{const v=scanInp.value.trim();if(!v)return;state.scanInput=v;const found=state.items.find(i=>i.barcode===v);state.scanResult=found||"not_found";render();};
+    scanInp.onkeydown=e=>{if(e.key==="Enter")manualScan.click();};
+  }
+  const scanAddNew=document.getElementById("scan-add-new");
+  if(scanAddNew)scanAddNew.onclick=()=>setState({modal:{type:"form",item:{name:"",category:"otros",barcode:state.scanInput,serial:"",location:"Almacén principal",state:"Nuevo",quantity:1,assignedTo:"",purchaseDate:"",notes:"",value:0}},scanResult:null});
+  const scanDetail=document.getElementById("scan-found-detail");
+  if(scanDetail&&state.scanResult&&state.scanResult!=="not_found")scanDetail.onclick=()=>setState({modal:{type:"detail",item:state.scanResult}});
+
+  // Users
+  const addUser=document.getElementById("btn-adduser");if(addUser)addUser.onclick=()=>setState({modal:{type:"adduser"}});
+  document.querySelectorAll("[data-deluser]").forEach(b=>b.onclick=()=>{const u=b.dataset.deluser;if(confirm(`¿Eliminar usuario "${u}"?`)){state.users=state.users.filter(x=>x.username!==u);addLog(`Usuario eliminado: ${u}`);showToast(`Usuario "${u}" eliminado`,"error");persist();}});
+
+  // Modal
+  bindModal();
+}
+
+function bindModal(){
+  const overlay=document.getElementById("modal-overlay");
+  const close=document.getElementById("modal-close");
+  const cancel=document.getElementById("modal-cancel");
+  const closeModal=()=>setState({modal:null});
+  if(close)close.onclick=closeModal;
+  if(cancel)cancel.onclick=closeModal;
+  if(overlay)overlay.onclick=e=>{if(e.target===overlay)closeModal();};
+
+  // Form save
+  const save=document.getElementById("modal-save");
+  if(save&&state.modal?.type==="form"){
+    save.onclick=()=>{
+      const name=document.getElementById("fi-name").value.trim();if(!name)return;
+      const data={
+        name,
+        category:document.getElementById("fi-cat").value,
+        barcode:document.getElementById("fi-barcode").value.trim()||genBarcode(),
+        serial:document.getElementById("fi-serial").value.trim(),
+        location:document.getElementById("fi-loc").value,
+        state:document.getElementById("fi-state").value,
+        quantity:parseInt(document.getElementById("fi-qty").value)||1,
+        value:parseFloat(document.getElementById("fi-value").value)||0,
+        assignedTo:document.getElementById("fi-assign").value.trim(),
+        purchaseDate:document.getElementById("fi-date").value,
+        notes:document.getElementById("fi-notes").value.trim(),
+      };
+      if(state.modal.item){
+        data.id=state.modal.item.id;
+        state.items=state.items.map(i=>i.id===data.id?data:i);
+        addLog(`Editado: ${data.name} (${data.barcode})`);
+        showToast(`"${data.name}" actualizado`);
+      } else {
+        data.id=uid();
+        state.items=[data,...state.items];
+        addLog(`Añadido: ${data.name} (${data.barcode})`);
+        showToast(`"${data.name}" añadido`);
+      }
+      state.modal=null;persist();render();
+    };
+  }
+  // Gen barcode btn in form
+  const genBtn=document.getElementById("fi-genbc");
+  if(genBtn)genBtn.onclick=()=>{document.getElementById("fi-barcode").value=genBarcode();};
+
+  // Detail modal actions
+  document.querySelectorAll("[data-modal-edit]").forEach(b=>b.onclick=()=>{const i=state.items.find(x=>x.id===b.dataset.modalEdit);if(i)setState({modal:{type:"form",item:i}});});
+  document.querySelectorAll("[data-modal-del]").forEach(b=>b.onclick=()=>{const i=state.items.find(x=>x.id===b.dataset.modalDel);if(i&&confirm(`¿Eliminar "${i.name}"?`)){state.items=state.items.filter(x=>x.id!==i.id);addLog(`Eliminado: ${i.name}`);showToast(`"${i.name}" eliminado`,"error");state.modal=null;persist();render();}});
+
+  // Add user
+  const saveUser=document.getElementById("modal-saveuser");
+  if(saveUser){
+    saveUser.onclick=()=>{
+      const name=document.getElementById("nu-name").value.trim();
+      const username=document.getElementById("nu-user").value.trim();
+      const password=document.getElementById("nu-pass").value;
+      const role=document.getElementById("nu-role").value;
+      if(!name||!username||!password)return;
+      if(state.users.find(u=>u.username===username)){showToast("Ese usuario ya existe","error");return;}
+      state.users.push({username,password,name,role});
+      addLog(`Nuevo usuario: ${username}`);showToast(`Usuario "${username}" creado`);
+      state.modal=null;persist();render();
+    };
+  }
+}
+
+// ── Init ──
+load();
+</script>
+</body>
+</html>
