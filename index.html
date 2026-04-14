@@ -406,22 +406,21 @@ function addLog(action){
   state.log=[{id:uid(),action,date:new Date().toISOString(),user:state.user?.name||"Sistema"},...state.log].slice(0,200);
 }
 
-// ── Persistence ──
+// ── Persistence (localStorage) ──
 const SKEY="inv-data",AKEY="inv-auth";
-async function load(){
+function load(){
   try{
-    let a,d;
-    try{const r=await window.storage.get(AKEY);a=r?JSON.parse(r.value):null;}catch{}
-    try{const r=await window.storage.get(SKEY);d=r?JSON.parse(r.value):null;}catch{}
-    if(a?.users)state.users=a.users;
+    const a=JSON.parse(localStorage.getItem(AKEY));
+    const d=JSON.parse(localStorage.getItem(SKEY));
+    if(a&&a.users)state.users=a.users;
     else{state.users=[{username:"admin",password:"admin123",role:"admin",name:"Administrador"}];saveAuth();}
     if(d){state.items=d.items||[];state.log=d.log||[];}
     else{state.items=DEMO;state.log=[{id:uid(),action:"Sistema iniciado con datos de ejemplo",date:new Date().toISOString(),user:"Sistema"}];}
-  }catch{state.users=[{username:"admin",password:"admin123",role:"admin",name:"Administrador"}];state.items=DEMO;state.log=[];}
+  }catch(e){state.users=[{username:"admin",password:"admin123",role:"admin",name:"Administrador"}];state.items=DEMO;state.log=[];}
   state.loading=false;render();
 }
-async function saveData(){try{await window.storage.set(SKEY,JSON.stringify({items:state.items,log:state.log}));}catch{}}
-async function saveAuth(){try{await window.storage.set(AKEY,JSON.stringify({users:state.users}));}catch{}}
+function saveData(){try{localStorage.setItem(SKEY,JSON.stringify({items:state.items,log:state.log}));}catch(e){}}
+function saveAuth(){try{localStorage.setItem(AKEY,JSON.stringify({users:state.users}));}catch(e){}}
 function persist(){saveData();saveAuth();}
 
 // ── SVG icons ──
